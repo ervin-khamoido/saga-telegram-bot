@@ -202,18 +202,27 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if chat_id not in subscribers:
         subscribers.add(chat_id)
         save_subscribers(subscribers)
-        await update.message.reply_text("✅ You are now subscribed to apartment notifications.")
+        await update.message.reply_text("✅ You are now subscribed to apartment updates.")
     else:
         await update.message.reply_text("ℹ️ You are already subscribed.")
 
-    # ✅ Fetch current offers and send all of them
+    # ✅ Отримуємо всі поточні оголошення
     offers = fetch_offers()
-    logger.info(f"Sending all current offers to new subscriber {chat_id}")
 
-    for offer_id, data in offers.items():
-        details = parse_offer_details(data)
-        message = build_message(data, details)
-        await context.bot.send_message(chat_id=chat_id, text=message, parse_mode='Markdown')
+    if not offers:
+        await context.bot.send_message(chat_id=chat_id, text="🔍 No current listings found.")
+        return
+
+    # ⬇️ Надсилаємо всі доступні оголошення користувачу
+    for offer_id, offer_data in offers.items():
+        details = parse_offer_details(offer_data)
+        message = build_message(offer_data, details)
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text=message,
+            parse_mode='Markdown',
+            disable_web_page_preview=True
+        )
 
 
 def run_bot():
