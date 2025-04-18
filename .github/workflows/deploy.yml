@@ -19,6 +19,11 @@ jobs:
       - name: Clear known_offers.txt cache
         run: |
           if [ -f known_offers.txt ]; then rm known_offers.txt; fi
+          python-version: 3.11
+
+      - name: Clear subscribers.txt cache
+        run: |
+          if [ -f subscribers.txt ]; then rm subscribers.txt; fi
 
       - name: Install dependencies
         run: |
