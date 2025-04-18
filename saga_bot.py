@@ -43,6 +43,19 @@ def save_known_offers(offers):
         for offer_id in sorted(offers):
             f.write(f"{offer_id}\n")
 
+SUBSCRIBERS_PATH = BASE_DIR / 'subscribers.txt'
+
+def load_subscribers():
+    if not SUBSCRIBERS_PATH.exists():
+        return set()
+    with open(SUBSCRIBERS_PATH, 'r') as f:
+        return set(line.strip() for line in f if line.strip())
+
+def save_subscribers(subscribers):
+    with open(SUBSCRIBERS_PATH, 'w') as f:
+        for chat_id in sorted(subscribers):
+            f.write(f"{chat_id}\n")
+
 
 def load_subscribers():
     if not SUBSCRIBERS_PATH.exists():
