@@ -205,7 +205,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def run_bot():
     application = Application.builder().token(BOT_TOKEN).build()
     application.add_handler(CommandHandler("start", start))
-    asyncio.create_task(check_and_notify_loop())
+
+    async def startup_task(app: Application):
+        app.create_task(check_and_notify_loop())
+
+    application.post_init = startup_task
     application.run_polling()
 
 
