@@ -130,32 +130,36 @@ def parse_offer_details(offer):
 def build_message(data, details):
     title = data.get('title', 'Neue Anzeige')
     url = data.get('url')
-    offer_id = data.get('url').split('/')[-2]  # Витягуємо ID із URL
+    offer_id = url.split('/')[-2]
     immomio_link = f"https://tenant.immomio.com/de/apply/{offer_id}"
+
+    def line(emoji, label, value, suffix=''):
+        return f"{emoji} {label}: {value.strip()} {suffix}".strip()
 
     lines = [f"🏠 *{title}*"]
 
     if details.get("Objektnummer"):
-        lines.append(f"🆔 *Objektnummer:* {details['Objektnummer']}")
+        lines.append(line("🆔", "Objektnummer", details["Objektnummer"]))
     if details.get("Netto-Kaltmiete"):
-        lines.append(f"💵 *Netto-Kaltmiete:* {details['Netto-Kaltmiete']}")
+        lines.append(line("💵", "Kaltmiete", details["Netto-Kaltmiete"], "€"))
     if details.get("Betriebskosten"):
-        lines.append(f"💡 *Betriebskosten:* {details['Betriebskosten']}")
+        lines.append(line("💡", "Betriebskosten", details["Betriebskosten"], "€"))
     if details.get("Heizkosten"):
-        lines.append(f"🔥 *Heizkosten:* {details['Heizkosten']}")
+        lines.append(line("🔥", "Heizkosten", details["Heizkosten"], "€"))
     if details.get("Gesamtmiete"):
-        lines.append(f"💰 *Gesamtmiete:* {details['Gesamtmiete']}")
+        lines.append(line("💰", "Gesamtmiete", details["Gesamtmiete"], "€"))
     if details.get("Wohnfläche ca."):
-        lines.append(f"📐 *Wohnfläche:* {details['Wohnfläche ca.']}")
+        lines.append(line("📐", "Wohnfläche", details["Wohnfläche ca."], "m²"))
     if details.get("Zimmer"):
-        lines.append(f"🛏️ *Zimmer:* {details['Zimmer']}")
+        lines.append(line("🛏️", "Zimmer", details["Zimmer"]))
     if details.get("Etage"):
-        lines.append(f"🏢 *Etage:* {details['Etage']}")
+        lines.append(line("🏢", "Etage", details["Etage"]))
     if details.get("Verfügbar ab"):
-        lines.append(f"📅 *Verfügbar ab:* {details['Verfügbar ab']}")
+        lines.append(line("📅", "Verfügbar ab", details["Verfügbar ab"]))
     if details.get("Energieeffizienzklasse"):
-        lines.append(f"⚡ *Energieklasse:* {details['Energieeffizienzklasse']}")
+        lines.append(line("⚡", "Energieklasse", details["Energieeffizienzklasse"]))
 
+    lines.append("")
     lines.append(f"🔗 [Anzeigen-Link]({url})")
     lines.append(f"📬 [Jetzt bewerben]({immomio_link})")
 
