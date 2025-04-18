@@ -31,7 +31,6 @@ SUBSCRIBERS_PATH = BASE_DIR / 'subscribers.txt'
 # --- Telegram бот ---
 bot = Bot(token=BOT_TOKEN)
 
-
 def load_known_offers():
     if not KNOWN_OFFERS_PATH.exists():
         return set()
@@ -206,10 +205,10 @@ def run_bot():
     application = Application.builder().token(BOT_TOKEN).build()
     application.add_handler(CommandHandler("start", start))
 
-    async def startup_task(app: Application):
-        app.create_task(check_and_notify_loop())
+    async def startup(app: Application):
+        asyncio.create_task(check_and_notify_loop())
 
-    application.post_init = startup_task
+    application.post_init = startup
     application.run_polling()
 
 
