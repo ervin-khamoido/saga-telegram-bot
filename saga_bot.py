@@ -10,41 +10,40 @@ from bs4 import BeautifulSoup
 from telegram import Bot, Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 
-# --- Логування ---
+# --- Logging ---
 logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
-# --- Змінні середовища ---
+# --- Load environment variables ---
 load_dotenv()
 BOT_TOKEN = os.getenv('TELEGRAM_TOKEN')
 SAGA_URL = os.getenv('SAGA_URL')
 INTERVAL = int(os.getenv('CHECK_INTERVAL', '300'))
 
-# --- Шляхи ---
+# --- File paths ---
 BASE_DIR = Path(__file__).parent
 KNOWN_OFFERS_PATH = BASE_DIR / 'known_offers.txt'
 SUBSCRIBERS_PATH = BASE_DIR / 'subscribers.txt'
 
-# --- Telegram бот ---
+# --- Telegram Bot ---
 bot = Bot(token=BOT_TOKEN)
 
+# --- Cache Management ---
 def load_known_offers():
     if not KNOWN_OFFERS_PATH.exists():
         return set()
     with open(KNOWN_OFFERS_PATH, 'r') as f:
         return set(line.strip() for line in f if line.strip())
 
-
 def save_known_offers(offers):
     with open(KNOWN_OFFERS_PATH, 'w') as f:
         for offer_id in sorted(offers):
             f.write(f"{offer_id}\n")
 
-SUBSCRIBERS_PATH = BASE_DIR / 'subscribers.txt'
-
+# --- Subscription ---
 def load_subscribers():
     if not SUBSCRIBERS_PATH.exists():
         return set()
@@ -56,22 +55,7 @@ def save_subscribers(subscribers):
         for chat_id in sorted(subscribers):
             f.write(f"{chat_id}\n")
 
-
-def load_subscribers():
-    if not SUBSCRIBERS_PATH.exists():
-        return set()
-    with open(SUBSCRIBERS_PATH, 'r') as f:
-        return set(line.strip() for line in f if line.strip())
-
-
-def add_subscriber(chat_id):
-    subscribers = load_subscribers()
-    if str(chat_id) not in subscribers:
-        with open(SUBSCRIBERS_PATH, 'a') as f:
-            f.write(f"{chat_id}\n")
-        logger.info(f"New subscriber added: {chat_id}")
-
-
+# --- Parsing ---
 def fetch_offers():
     headers = {'User-Agent': 'Mozilla/5.0'}
     response = requests.get(SAGA_URL, headers=headers, timeout=10)
@@ -84,13 +68,12 @@ def fetch_offers():
         parts = href.strip('/').split('/')
         offer_id = parts[-2]
         full_url = f"https://www.saga.hamburg{href}"
-        title = listing.get_text(strip=True) or 'Нове оголошення'
+        title = listing.get_text(strip=True) or 'Neue Anzeige'
         offers[offer_id] = {
             'url': full_url,
             'title': title,
         }
     return offers
-
 
 def parse_offer_details(offer):
     headers = {'User-Agent': 'Mozilla/5.0'}
@@ -99,7 +82,6 @@ def parse_offer_details(offer):
     soup = BeautifulSoup(response.text, 'html.parser')
     data = {}
 
-    # dt/dd
     for dl in soup.find_all('dl'):
         for dt, dd in zip(dl.find_all('dt'), dl.find_all('dd')):
             k = dt.get_text(strip=True)
@@ -107,7 +89,6 @@ def parse_offer_details(offer):
             if v:
                 data[k] = v
 
-    # table th/td
     for table in soup.find_all('table'):
         for row in table.find_all('tr'):
             cols = row.find_all(['th', 'td'])
@@ -117,7 +98,6 @@ def parse_offer_details(offer):
                 if v:
                     data[k] = v
 
-    # опис
     desc = soup.select_one('#text-description, .description')
     if desc:
         text = desc.get_text(separator=' ', strip=True)
@@ -126,7 +106,7 @@ def parse_offer_details(offer):
 
     return data
 
-
+# --- Format message ---
 def build_message(data, details):
     title = data.get('title', 'Neue Anzeige')
     url = data.get('url')
@@ -134,30 +114,40 @@ def build_message(data, details):
     immomio_link = f"https://tenant.immomio.com/de/apply/{offer_id}"
 
     def line(emoji, label, value, suffix=''):
-        return f"{emoji} {label}: {value.strip()} {suffix}".strip()
+        value = value.replace("€", "").replace("m²", "").strip()
+        return f"{emoji} *{label}:* {value}{suffix}".strip()
+
+    # Energy class colors
+    energy_emoji = {
+        "A+": "🟢", "A": "🟢", "B": "🟢",
+        "C": "🟡", "D": "🟡",
+        "E": "🟠", "F": "🔴", "G": "🔴"
+    }
+    energy_class = details.get("Energieeffizienzklasse", "").strip()
+    energy_icon = energy_emoji.get(energy_class.upper(), "⚡️")
 
     lines = [f"🏠 *{title}*"]
 
     if details.get("Objektnummer"):
         lines.append(line("🆔", "Objektnummer", details["Objektnummer"]))
     if details.get("Netto-Kaltmiete"):
-        lines.append(line("💵", "Kaltmiete", details["Netto-Kaltmiete"], "€"))
+        lines.append(line("💵", "Kaltmiete", details["Netto-Kaltmiete"], " €"))
     if details.get("Betriebskosten"):
-        lines.append(line("💡", "Betriebskosten", details["Betriebskosten"], "€"))
+        lines.append(line("💡", "Betriebskosten", details["Betriebskosten"], " €"))
     if details.get("Heizkosten"):
-        lines.append(line("🔥", "Heizkosten", details["Heizkosten"], "€"))
+        lines.append(line("🔥", "Heizkosten", details["Heizkosten"], " €"))
     if details.get("Gesamtmiete"):
-        lines.append(line("💰", "Gesamtmiete", details["Gesamtmiete"], "€"))
+        lines.append(line("💰", "Gesamtmiete", details["Gesamtmiete"], " €"))
     if details.get("Wohnfläche ca."):
-        lines.append(line("📐", "Wohnfläche", details["Wohnfläche ca."], "m²"))
+        lines.append(line("📐", "Wohnfläche", details["Wohnfläche ca."], " m²"))
     if details.get("Zimmer"):
         lines.append(line("🛏️", "Zimmer", details["Zimmer"]))
     if details.get("Etage"):
         lines.append(line("🏢", "Etage", details["Etage"]))
     if details.get("Verfügbar ab"):
         lines.append(line("📅", "Verfügbar ab", details["Verfügbar ab"]))
-    if details.get("Energieeffizienzklasse"):
-        lines.append(line("⚡", "Energieklasse", details["Energieeffizienzklasse"]))
+    if energy_class:
+        lines.append(f"{energy_icon} *Energieklasse:* {energy_class}")
 
     lines.append("")
     lines.append(f"🔗 [Anzeigen-Link]({url})")
@@ -165,7 +155,7 @@ def build_message(data, details):
 
     return '\n'.join(lines)
 
-
+# --- Notifier ---
 async def notify_new_offers(new_offers):
     subscribers = load_subscribers()
     if not subscribers:
@@ -190,9 +180,8 @@ async def notify_new_offers(new_offers):
         except Exception as e:
             logger.error(f"Error parsing {offer_id}: {e}")
 
-
+# --- Background task ---
 async def check_and_notify_loop():
-    # Автоочищення кешу
     if KNOWN_OFFERS_PATH.exists():
         age = time.time() - KNOWN_OFFERS_PATH.stat().st_mtime
         if age > 7 * 86400:
@@ -218,8 +207,7 @@ async def check_and_notify_loop():
             logger.exception(f"Error during monitoring: {e}")
         await asyncio.sleep(INTERVAL)
 
-
-# --- Telegram command handlers ---
+# --- Command handlers ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = str(update.effective_chat.id)
     subscribers = load_subscribers()
@@ -232,7 +220,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("ℹ️ You are already subscribed.")
 
-    # ⬇️ Отримати всі поточні оголошення
+    # Send current offers
     offers = fetch_offers()
     logger.info(f"Sending {len(offers)} current offers to chat {chat_id}")
 
@@ -240,7 +228,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("🔍 No current listings found.")
         return
 
-    # ⬇️ Надіслати всі оголошення користувачу
     for offer_id, offer_data in offers.items():
         details = parse_offer_details(offer_data)
         message = build_message(offer_data, details)
@@ -251,7 +238,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             disable_web_page_preview=True
         )
 
-
+# --- Entry point ---
 def run_bot():
     application = Application.builder().token(BOT_TOKEN).build()
     application.add_handler(CommandHandler("start", start))
@@ -261,7 +248,6 @@ def run_bot():
 
     application.post_init = startup
     application.run_polling()
-
 
 if __name__ == '__main__':
     run_bot()
