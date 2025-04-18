@@ -196,9 +196,24 @@ async def check_and_notify_loop():
 
 # --- Telegram command handlers ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id
-    add_subscriber(chat_id)
-    await update.message.reply_text("✅ Ви підписані! Нові оголошення будуть надсилатись сюди.")
+    chat_id = str(update.effective_chat.id)
+    subscribers = load_subscribers()
+
+    if chat_id not in subscribers:
+        subscribers.add(chat_id)
+        save_subscribers(subscribers)
+        await update.message.reply_text("✅ You are now subscribed to apartment notifications.")
+    else:
+        await update.message.reply_text("ℹ️ You are already subscribed.")
+
+    # ✅ Fetch current offers and send all of them
+    offers = fetch_offers()
+    logger.info(f"Sending all current offers to new subscriber {chat_id}")
+
+    for offer_id, data in offers.items():
+        details = parse_offer_details(data)
+        message = build_message(data, details)
+        await context.bot.send_message(chat_id=chat_id, text=message, parse_mode='Markdown')
 
 
 def run_bot():
