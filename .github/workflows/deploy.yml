@@ -30,3 +30,7 @@ jobs:
 
       - name: Debug env
         run: echo "Token starts with: ${{ secrets.TELEGRAM_TOKEN }}"
+
+      - name: Clear known_offers.txt cache
+        run: |
+          if [ -f known_offers.txt ]; then rm known_offers.txt; fi
